@@ -7,6 +7,13 @@ A WEIRD stack-based programming language
 - [Features](#features)
 - [Getting Started](#getting-started)
 - [Examples](#examples)
+  - [Sum of Numbers](#sum-of-numbers)
+  - [Factorial](#factorial)
+  - [Sum of Squares](#sum-of-squares)
+  - [Negative Check](#negative-check)
+  - [Fibonacci Sequence](#fibonacci-sequence)
+    - [Recursive](#recursive)
+    - [Iterative](#iterative)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -22,6 +29,7 @@ This language is designed to make you question your life choices. It's a stack-b
 
 - **Stack-Based**: Everything is a stack. Because why not?
 - **Recursion**: You can call yourself with `__self__`. Isn't that cute?
+- **Iteration**: You can restart the current expression with `__self__goto__`. Because who needs loops?
 - **Conditional Statements**: `if` and `else` are here to make your life a living hell.
 - **Basic Operations**: `print`, `pop`, `sum`, `dif`, `mul`, `div`, `dup`, `swap`, `swap0_2`. Because who needs more?
 
@@ -30,8 +38,9 @@ This language is designed to make you question your life choices. It's a stack-b
 To get started, you'll need to write some code. Here's a simple example to calculate the factorial of a number:
 
 ```
-st factorial_loop : swap dup if dup swap0_2 mul swap 1 dif swap __self__ else pop ;
+st factorial_loop : swap dup if dup swap0_2 mul swap 1 dif swap __self__goto__ else pop ;
 st factorial : 1 factorial_loop ;
+
 st start : 10 factorial print ;
 ```
 
@@ -39,17 +48,70 @@ Yeah, it's that simple.
 
 ## Examples
 
+### Sum of Numbers
+
+Here's how you can calculate the sum of numbers from 1 to N:
+
+```
+st sum_of_loop : swap dup if dup swap0_2 sum swap 1 dif swap __self__goto__ else pop ;
+st sum_of : 0 sum_of_loop ;
+```
+
+### Factorial
+
+Here's how you can calculate the factorial of a number:
+
+```
+st factorial_loop : swap dup if dup swap0_2 mul swap 1 dif swap __self__goto__ else pop ;
+st factorial : 1 factorial_loop ;
+```
+
 ### Sum of Squares
 
 Here's how you can calculate the sum of squares from 1 to N:
 
 ```
-st sum_squares_loop : swap dup if dup swap0_2 swap dup mul sum swap 1 dif swap __self__ else pop ;
+st sum_squares_loop : swap dup if dup swap0_2 swap dup mul sum swap 1 dif swap __self__goto__ else pop ;
 st sum_squares : 0 sum_squares_loop ;
-st start : 9 sum_squares print ;
 ```
 
-A bit weird.
+### Negative Check
+
+Here's how you can check if a number is negative:
+
+```
+st negative : if 0 else 1 ;
+```
+
+### Fibonacci Sequence
+
+#### Recursive
+
+Here's how you can calculate the Fibonacci sequence using recursion:
+
+```
+st fibonacci_recursion : dup 1 dif is_negative if pop 0 else dup 2 dif is_negative if pop 1 else 1 dif dup 1 dif __self__ swap __self__ sum ;
+```
+Calculating the 46th Fibonacci number took me 7 minutes, so just don't use recursion unless you're feeling particularly masochistic.
+
+#### Iterative
+
+Here's how you can calculate the Fibonacci sequence using iteration:
+
+```
+st fibonacci_iteration_loop : swap0_2 dup if 1 dif swap0_2 dup swap0_2 sum __self__goto__ else pop swap pop ;
+st fibonacci_iteration : dup 1 dif negative if pop 0 else 1 dif 0 1 fibonacci_iteration_loop ;
+```
+
+### Start Example
+
+Here's an example that combines multiple functions:
+
+```
+st start : 9 sum_of print 9 factorial print 9 sum_squares print 46 fibonacci_iteration print 35 fibonacci_recursion print ;
+```
+
+It might be a quirk of the Rust, but print only works after all the called states have finished executing—but it does work correctly. So, if you want to see the result of sum_of, you'll have to wait for fibonacci_recursion to finish, which could take a while. Grab a coffee, maybe two.
 
 ## Contributing
 
@@ -57,4 +119,4 @@ Feel free to contribute to this **`language`**. Just make sure your code is as o
 
 ## License
 
-This project is licensed under the [MIT license](license) (why not WTFPL? idk )
+This project is licensed under the [MIT license](license) (why not WTFPL? idk)
