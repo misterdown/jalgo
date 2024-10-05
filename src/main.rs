@@ -201,7 +201,6 @@ fn compile_statement(state: &State) -> Option<String> {
     out += state.name.as_str();
     out += "_jump_position_you_know:\n";
 
-    let mut if_happens = false;
 
     let mut iter =  state.deps.iter();
     let mut if_count = 0;
@@ -212,19 +211,17 @@ fn compile_statement(state: &State) -> Option<String> {
         }
         let i = io.unwrap();
         
-        if if_happens  {
+        if if_count > 0  {
             if i.state_type ==  StateType::Else {
-                out += "\tcall get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n";
-                out += format!("{}_else{}:\n", state.name, if_count).as_str();
-                if_happens = false;
-                if_count += 1;
+                out += format!("{}{}_else{}:\n", "\tcall get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_count).as_str();
+                if_count -= 1;
             }
         }
         if i.state_type ==  StateType::If {
+            if_count += 1;
             out += "\tpop rax\n";
             out += "\tcmp rax, 0\n";
             out += format!("\tjle {}_else{}\n", state.name, if_count).as_str();
-            if_happens = true;
             
         } else if i.state_type ==  StateType::Else {
             
@@ -247,7 +244,7 @@ fn compile_statement(state: &State) -> Option<String> {
         }
         iter.next();
     }
-    if if_happens {
+    if if_count > 0 {
         out += format!("{}_else{}:\n", state.name, if_count).as_str();
     }
     out += "\tcall get_pop_second_stack\n\tpush rax\n\tret\n";
