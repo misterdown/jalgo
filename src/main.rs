@@ -1,3 +1,27 @@
+/*  main.rs
+    MIT License
+
+    Copyright (c) 2024 Aidar Shigapov
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+*/
+
 use std::*;
 use std::process::exit;
 use collections::hash_map::HashMap;
@@ -204,6 +228,7 @@ fn compile_statement(state: &State) -> Option<String> {
 
     let mut iter =  state.deps.iter();
     let mut if_count = 0;
+    let mut global_if_count = 0;
     loop {
         let io = iter.as_slice().first();
         if io.is_none() {
@@ -213,15 +238,16 @@ fn compile_statement(state: &State) -> Option<String> {
         
         if if_count > 0  {
             if i.state_type ==  StateType::Else {
-                out += format!("{}{}_else{}:\n", "\tcall get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_count).as_str();
+                out += format!("{}{}_else{}_{}:\n", "\tcall get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_count, global_if_count).as_str();
                 if_count -= 1;
             }
         }
         if i.state_type ==  StateType::If {
             if_count += 1;
+            global_if_count += 1;
             out += "\tpop rax\n";
             out += "\tcmp rax, 0\n";
-            out += format!("\tjle {}_else{}\n", state.name, if_count).as_str();
+            out += format!("\tjle {}_else{}_{}\n", state.name, if_count, global_if_count).as_str();
             
         } else if i.state_type ==  StateType::Else {
             
@@ -245,7 +271,7 @@ fn compile_statement(state: &State) -> Option<String> {
         iter.next();
     }
     if if_count > 0 {
-        out += format!("{}_else{}:\n", state.name, if_count).as_str();
+        out += format!("{}_else{}_{}:\n", state.name, if_count, global_if_count).as_str();
     }
     out += "\tcall get_pop_second_stack\n\tpush rax\n\tret\n";
     return Some(out)
