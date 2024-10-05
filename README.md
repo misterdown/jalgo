@@ -79,8 +79,8 @@ Who needs more options?
 Here's how you can calculate the sum of numbers from 1 to N:
 
 ```
-st sum_of_loop : swap dup if dup swap0_2 sum swap 1 dif swap __self__goto__ else pop ;
-st sum_of : 0 sum_of_loop ;
+st sum_of_loop : dup if dup swap0_2 sum swap 1 dif __self__goto__ else pop ;
+st sum_of : 0 swap sum_of_loop ;
 ```
 
 ### Factorial
@@ -88,8 +88,8 @@ st sum_of : 0 sum_of_loop ;
 Here's how you can calculate the factorial of a number:
 
 ```
-st factorial_loop : swap dup if dup swap0_2 mul swap 1 dif swap __self__goto__ else pop ;
-st factorial : 1 factorial_loop ;
+st factorial_loop : dup if dup swap0_2 mul swap 1 dif __self__goto__ else pop ;
+st factorial : 1 swap factorial_loop ;
 ```
 
 ### Sum of Squares
@@ -97,8 +97,8 @@ st factorial : 1 factorial_loop ;
 Here's how you can calculate the sum of squares from 1 to N:
 
 ```
-st sum_squares_loop : swap dup if dup swap0_2 swap dup mul sum swap 1 dif swap __self__goto__ else pop ;
-st sum_squares : 0 sum_squares_loop ;
+st sum_squares_loop : dup if dup swap0_2 swap dup mul sum swap 1 dif __self__goto__ else pop ;
+st sum_squares : 0 swap sum_squares_loop ;
 ```
 
 ### Fibonacci Sequence
