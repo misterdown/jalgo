@@ -257,8 +257,8 @@ fn compile_statement(state: &State) -> Option<String> {
 fn main() {
     let matches = App::new("jalgo")
         .version("1.0")
-        .author("Your Name")
-        .about("A simple compiler")
+        .author("Aidar Shigapov")
+        .about("compiler/interpriter for jango language")
         .arg(
             Arg::with_name("input")
                 .short("i")
@@ -280,7 +280,7 @@ fn main() {
             Arg::with_name("mode")
                 .short("m")
                 .long("interprutation/compilation mode")
-                .value_name("boolean")
+                .value_name("String")
                 .help("sets the interprutation/compilation mode.\n\tposible values: c | i")
                 .index(3),
         )
