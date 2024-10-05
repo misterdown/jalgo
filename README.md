@@ -101,6 +101,11 @@ st sum_squares_loop : dup if dup swap0_2 swap dup mul sum swap 1 dif __self__got
 st sum_squares : 0 swap sum_squares_loop ;
 ```
 
+### Is negative
+```
+st is_negative : if 0 else 1 ; 
+```
+
 ### Fibonacci Sequence
 
 #### Recursive
@@ -119,7 +124,7 @@ Here's how you can calculate the Fibonacci sequence using iteration:
 
 ```
 st fibonacci_iteration_loop : swap0_2 dup if 1 dif swap0_2 dup swap0_2 sum __self__goto__ else pop swap pop ;
-st fibonacci_iteration : dup 1 dif negative if pop 0 else 1 dif 0 1 fibonacci_iteration_loop ;
+st fibonacci_iteration : dup 1 dif is_negative if pop 0 else 1 dif 0 1 fibonacci_iteration_loop ;
 ```
 
 ### Start Example
