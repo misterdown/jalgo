@@ -34,7 +34,7 @@ Welcome to jalgo, a stack-based programming language that's designed to make you
 - **Conditional Statements**: `if` and `else` are here to make your life a living hell.
 - **Basic Operations**: `print`, `pop`, `sum`, `dif`, `mul`, `div`, `dup`, `swap`, `swap0_2`. Who needs more?
 - **Stack Management**: `stack_head` returns a pointer to the top of the stack.
-- **Memory Operations**: `write_to` writes a value to a memory location pointed to by the top value on the stack. Syntax: `POINTER VALUE write_to`. read_from reads a value from a memory location pointed to by the top value on the stack. Syntax: `POINTER read_from`. Who needs fancy data structures?
+- **Memory Operations**: `write_to` writes a value to a memory location pointed to by the top value on the stack. Syntax: `POINTER VALUE write_to`. `read_from` reads a value from a memory location pointed to by the top value on the stack. Syntax: `POINTER read_from`. Who needs fancy data structures?
 
 
 ## Getting Started
