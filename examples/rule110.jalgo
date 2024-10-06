@@ -1,0 +1,109 @@
+st rule110_step : /* takes 3 last stack values and return to stack a new value. current[-1] | current[0] | current[1] => rule110 result */
+    if
+        if 
+            if /* 111 */
+                0
+            else /* 011 */
+                1
+        else
+            if /* 101 */
+                1
+            else /* 001 */
+                1
+    else
+        if 
+            if /* 110 */
+                1
+            else /* 010 */
+                1
+        else
+            if /* 100 */
+                0
+            else /* 000 */
+                0 ;
+
+st apply_rule110 :
+    /* current stack: [ tape buffer 1 pointer | tape buffer 2 pointer | tape size] */
+    /* assume the tape is already initialized with a binary sequence */
+    /* the head starts at the first cell */
+
+    dup if 
+        1 dif
+        swap0_2
+        /* current stack: [ tape size | tape buffer 2 pointer | tape buffer 1 pointer ] */
+
+        /* read the current cell and its two neighbors */
+        dup 
+        dup 
+        dup 8 dif read_from /* left neighbor */
+        swap /* keep tape pointer on the top */
+
+        dup read_from /* current cell */
+        dup print
+        swap /* keep tape pointer on the top */
+
+        dup 8 sum read_from /* right neighbor */
+        swap
+        pop
+        /* apply Rule 110 */
+        rule110_step
+        
+        /* current stack: [ tape size | tape buffer 2 pointer | tape buffer 1 pointer | tape buffer 1 pointer | rule110_value ] */
+
+        /* get tape buffer 2 pointer */
+        stack_head 24 sum read_from
+        /* swap with rule110_value */
+        swap 
+        /* write the rule110_value to the second buffer */
+        write_to
+
+        /* current stack: [ tape size | tape buffer 2 pointer | tape buffer 1 pointer | tape buffer 1 pointer ] */
+        pop
+        
+        /* move to the next cell */
+        8 sum
+        swap
+        8 sum
+        swap
+        swap0_2
+
+        /* current stack: [ tape buffer 1 pointer | tape buffer 2 pointer | tape size] */
+        __self__goto__
+    else
+        pop 
+        pop
+        pop ;
+
+st copy_swaped : /* current: [ n1 | n2 ]. target: [n1 | n2 | n2 | n1 ] */
+    dup
+    stack_head 16 sum read_from ;
+
+st start :
+    /* initialize the tape with a binary sequence */
+
+    /* initialize rigth "border" with 0 */ 0 1 0 0 0 0 0 0 0 0 0 0 1 /* initialize rigth "border" with 1 */
+    stack_head 8 sum /* tape buffer 1 */
+
+    /* initialize rigth "border" with 0 */ 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize rigth "border" with 1 */
+    stack_head 8 sum /* tape buffer 2 */
+
+    dup
+    dup 96 sum read_from /* get tape buffer 1 */
+    /* 2 1 */
+    copy_swaped
+    copy_swaped
+    copy_swaped
+    copy_swaped
+    copy_swaped
+    11
+    apply_rule110 
+    11
+    apply_rule110 
+    11
+    apply_rule110 
+    11
+    apply_rule110 
+    11
+    apply_rule110 
+    11
+    apply_rule110 ;
