@@ -29,25 +29,27 @@ use clap::{App, Arg};
 
 macro_rules! INT_FMT {
     () => {
-        "\tpush {}\n"
+        "\tpush qword {}\n"
     };
 }
 
 mod windows {
-    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\tint_fmt: db \"%d \", 0\n\tsecond_stack: times 1024 dq 0\n\tstack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\nshare_to_second_stack:\n\t; arg - rax\n\tmov rbx, second_stack\n\tmov rcx, stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, stack_size\n\tinc qword [rcx]\n\tret\n\nget_pop_second_stack:\n\t; return - rax\n\tmov rbx, second_stack\n\tmov rcx, stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, stack_size\n\tdec qword [rcx]\n\tret\n";
+    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 }
 
 mod linux {
-    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\tint_fmt: db \"%d \", 0\n\tsecond_stack: times 1024 dq 0\n\tstack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\nshare_to_second_stack:\n\t; arg - rax\n\tmov rbx, second_stack\n\tmov rcx, stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, stack_size\n\tinc qword [rcx]\n\tret\n\nget_pop_second_stack:\n\t; return - rax\n\tmov rbx, second_stack\n\tmov rcx, stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, stack_size\n\tdec qword [rcx]\n\tret\n";
+    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 }
-
-const PRINT_ASM: &str = "\tpop rdx ; print\n\tlea rcx, [rel int_fmt]\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
-const POP_ASM: &str = "\tpop r9\n";
+const STACK_HEAD_ASM: &str = "\tpush rsp ; stack_head\n";
+const READ_FROM_ASM: &str = "\tpop rax ; read_from\n\tpush qword [rax]\n";
+const WRITE_TO_ASM: &str = "\tpop rax ; write_to\n\tpop rbx\n\tmov qword [rbx], rax\n";
+const PRINT_ASM: &str = "\tpop rdx ; print\n\tlea rcx, [rel @int_fmt]\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const POP_ASM: &str = "\tadd rsp, 8\n";
 const SUM_ASM: &str = "\tpop rax ; sum\n\tpop rbx\n\tadd rbx, rax\n\tpush rbx\n";
 const DIF_ASM: &str = "\tpop rax ; dif\n\tpop rbx\n\tsub rbx, rax\n\tpush rbx\n";
 const MUL_ASM: &str = "\tpop rax ; mul\n\tpop rbx\n\tmul rbx\n\tpush rax\n";
 const DIV_ASM: &str = "\tpop rbx; div\n\tpop rax\n\txor rdx, rdx\n\tdiv rbx\n\tpush rax\n";
-const DUP_ASM: &str = "\tpop rax ; dup\n\tpush rax\n\tpush rax\n";
+const DUP_ASM: &str = "\tpush qword [rsp] ; dup\n";
 const SWAP0_1_ASM: &str = "\tpop rax ; swap0_1\n\tpop rbx\n\tpush rax\n\tpush rbx\n";
 const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax\n\tpush rbx\n\tpush rcx\n";
 const EXIT_ASM: &str = "\tcall exit\n";
@@ -56,6 +58,9 @@ const EXIT_ASM: &str = "\tcall exit\n";
 #[derive(Hash)]
 enum StateType {
     Integer,
+    StackHead,
+    ReadFrom,
+    WriteTo,
     Print,
     Pop,
     Sum,
@@ -84,6 +89,9 @@ impl Clone for StateType {
     fn clone(&self) -> Self {
         match *self {
             StateType::Integer =>   StateType::Integer,
+            StateType::StackHead => StateType::StackHead,
+            StateType::ReadFrom =>  StateType::ReadFrom,
+            StateType::WriteTo =>   StateType::WriteTo,
             StateType::Print =>     StateType::Print,
             StateType::Pop =>       StateType::Pop,
             StateType::Sum =>       StateType::Sum,
@@ -109,7 +117,7 @@ struct State {
     name: String,
     deps: Vec<State>,
     state_type: StateType,
-    inlinable: bool,
+    inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
 }
 
 fn numeric_state(str: String) -> State {
@@ -120,6 +128,15 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
     match state.state_type {
         StateType::Integer => {
             stack.push(state.name.parse::<StackValueType>().ok()?);
+        }
+        StateType::StackHead => {
+            panic!("stack_head not allowed in interpriter mode");
+        }
+        StateType::ReadFrom => {
+            panic!("read_from not allowed in interpriter mode");
+        }
+        StateType::WriteTo => {
+            panic!("write_to not allowed in interpriter mode");
         }
         StateType::Print => {
             let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
@@ -166,6 +183,17 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
             exit(0);
         }
         _ => {
+            let mut else_count = 0;
+            let mut if_count = 0;
+            for i in state.deps.iter() {
+                if i.state_type == StateType::Else {
+                    else_count += 1;
+                } else if i.state_type == StateType::If {
+                    if_count += 1;
+                }
+            }
+            assert_eq!(if_count, else_count);
+
             let mut if_happens = false;
             let mut iter =  state.deps.iter();
             loop {
@@ -174,15 +202,15 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
                     break;
                 }
                 let i = io.unwrap();
-                
-                if if_happens  {
-                    if i.state_type ==  StateType::Else {
-                        if_happens = false;
-                    }
-                } else if i.state_type ==  StateType::If {
+                if i.state_type ==  StateType::If {
                     let last = stack.pop()?;
                     if last <= 0 {
                         if_happens = true;
+                    }
+                }
+                if if_happens  {
+                    if i.state_type ==  StateType::Else {
+                        if_happens = false;
                     }
                 } else if i.state_type ==  StateType::Else {
                     break;
@@ -200,8 +228,25 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
     }
     Some(())
 }
+fn is_inlinable(state: &State) -> bool {
+    if state.name == "start" {
+        return false
+    }
+    for i in state.deps.iter().enumerate() {
+        if  (i.1.state_type == StateType::If) || 
+            (i.1.state_type == StateType::Else) || 
+            (i.1.state_type == StateType::SelfCall) ||
+            (i.1.state_type == StateType::SelfGoto) {
+                return false
+        }
+    }
+    return true
+}
 fn compile_statement(state: &State) -> Option<String> {
     let mut map = HashMap::new();
+    map.insert(StateType::StackHead, STACK_HEAD_ASM);
+    map.insert(StateType::ReadFrom, READ_FROM_ASM);
+    map.insert(StateType::WriteTo, WRITE_TO_ASM);
     map.insert(StateType::Print, PRINT_ASM);
     map.insert(StateType::Pop, POP_ASM);
     map.insert(StateType::Sum, SUM_ASM);
@@ -220,46 +265,15 @@ fn compile_statement(state: &State) -> Option<String> {
         return Some(format!(INT_FMT!(), state.name));
     }
     let mut out = String::new();
-    out += state.name.as_str();
-    out += ":\n\tpop rax\n\tcall share_to_second_stack\n";
-    out += state.name.as_str();
-    out += "_jump_position_you_know:\n";
-
-
-    let mut iter =  state.deps.iter();
-    let mut if_count = 0;
-    let mut global_if_count = 0;
-    loop {
-        let io = iter.as_slice().first();
-        if io.is_none() {
-            break;
-        }
-        let i = io.unwrap();
-        
-        if if_count > 0  {
-            if i.state_type ==  StateType::Else {
-                out += format!("{}{}_else{}_{}:\n", "\tcall get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_count, global_if_count).as_str();
-                if_count -= 1;
+    if state.inlinable {
+        let mut iter =  state.deps.iter();
+        loop {
+            let io = iter.as_slice().first();
+            if io.is_none() {
+                break;
             }
-        }
-        if i.state_type ==  StateType::If {
-            if_count += 1;
-            global_if_count += 1;
-            out += "\tpop rax\n";
-            out += "\tcmp rax, 0\n";
-            out += format!("\tjle {}_else{}_{}\n", state.name, if_count, global_if_count).as_str();
+            let i = io.unwrap();
             
-        } else if i.state_type ==  StateType::Else {
-            
-        } else if i.state_type == StateType::SelfCall {
-            out += "\tcall ";
-            out += state.name.as_str();
-            out += "\n";
-        } else if i.state_type == StateType::SelfGoto {
-            out += "\tjmp ";
-            out += state.name.as_str();
-            out += "_jump_position_you_know\n";
-        } else {
             if i.inlinable || i.state_type == StateType::Integer {
                 out += compile_statement(i).expect("compiling error").as_str();
             } else {
@@ -267,13 +281,67 @@ fn compile_statement(state: &State) -> Option<String> {
                 out += i.name.as_str();
                 out += "\n";
             }
+            iter.next();
         }
-        iter.next();
+    } else {
+        out += state.name.as_str();
+        out += ":\n\tpop rax\n\tcall @share_to_second_stack\n";
+        out += "@";
+        out += state.name.as_str();
+        out += "_jump_position_you_know:\n";
+        
+        {
+            let mut else_count = 0;
+            let mut if_count = 0;
+            for i in state.deps.iter() {
+                if i.state_type == StateType::Else {
+                    else_count += 1;
+                } else if i.state_type == StateType::If {
+                    if_count += 1;
+                }
+            }
+            assert!(if_count == else_count, "for every `if`, there should be a corresponding `else`. check {} statement", state.name);
+        }
+        let mut iter =  state.deps.iter();
+        let mut if_count = 0;
+        let mut if_stack = Vec::new();
+        loop {
+            let io = iter.as_slice().first();
+            if io.is_none() {
+                break;
+            }
+            let i = io.unwrap();
+            
+            if i.state_type ==  StateType::If {
+                if_count += 1;
+                if_stack.push(if_count);
+                out += "\tpop rax\n";
+                out += "\tcmp rax, 0\n";
+                out += format!("\tjle @{}_else{}\n", state.name, if_count).as_str();
+                
+            } else if i.state_type ==  StateType::Else {
+                out += format!("{}@{}_else{}:\n", "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_stack.pop().expect("unexpected else")).as_str();
+            } else if i.state_type == StateType::SelfCall {
+                out += "\tcall ";
+                out += state.name.as_str();
+                out += "\n";
+            } else if i.state_type == StateType::SelfGoto {
+                out += "\tjmp @";
+                out += state.name.as_str();
+                out += "_jump_position_you_know\n";
+            } else {
+                if i.inlinable || i.state_type == StateType::Integer {
+                    out += compile_statement(i).expect("compilation error").as_str();
+                } else {
+                    out += "\tcall ";
+                    out += i.name.as_str();
+                    out += "\n";
+                }
+            }
+            iter.next();
+        }
+        out += "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n";
     }
-    if if_count > 0 {
-        out += format!("{}_else{}_{}:\n", state.name, if_count, global_if_count).as_str();
-    }
-    out += "\tcall get_pop_second_stack\n\tpush rax\n\tret\n";
     return Some(out)
 }
 
@@ -316,6 +384,9 @@ fn main() {
     let code = std::fs::read_to_string(input_file).expect("Unable to read file");
 
     let mut states: Vec<State> = vec![
+        State{name: "stack_head".to_string(),       state_type: StateType::StackHead,   deps: Vec::<State>::default(), inlinable: true },
+        State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::<State>::default(), inlinable: true },
+        State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::<State>::default(), inlinable: true },
         State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::<State>::default(), inlinable: true },
         State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::<State>::default(), inlinable: true },
         State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::<State>::default(), inlinable: true },
@@ -337,24 +408,50 @@ fn main() {
 
     let mut state_colon = false;
     let mut state_found = false;
+    let mut in_comment = false;
     for i in tokens.enumerate() {
         if i.1.is_empty() {
             continue;
         }
+        if in_comment { 
+            if i.1 == "*/" {
+                in_comment = false
+            }
+            continue;
+        }
+        if i.1 == "/*" {
+            in_comment = true;
+            continue;
+        }
+        
         if state_found {
             last_state.name = i.1.to_string();
+            if last_state.name.get(0..1).expect("too small statement name") == "@" {
+                panic!("the first character of the state name cannot be '@'");
+            }
             state_found = false;
         } else if state_colon {
             if i.1 == ";" {
                 state_colon = false;
+                // inline-check
+                if is_inlinable(&last_state) {
+                    last_state.inlinable = true;
+                }
+
                 states.push(last_state.clone());
                 last_state = State::default();
                 continue;
+            }
+            if i.1.get(0..1).expect("too small statement name") == "@" {
+                panic!("the first character of the state name cannot be '@'");
             }
             if let Ok(num) = i.1.parse::<StackValueType>() {
                 last_state.deps.push(numeric_state(num.to_string()));
                 continue;
             }
+
+            
+
             last_state.deps.push(
                 states
                     .iter()
@@ -374,7 +471,7 @@ fn main() {
             execute_statement(states.iter().enumerate().find(|x| x.1.name == "start").expect("entry point \"start\" doesnt exist").1, &mut stack);
             return;
         } else if mode != "c" {
-            panic!("unknown mode. Check --help")
+            panic!("unknown mode. check --help")
         }
     }
 
