@@ -1,4 +1,4 @@
 all: 
-	./jalgo.exe ./some.jalgo ./result.nasm c
-	nasm -f win64 result.nasm -o result.o
-	ld -o result.exe result.o -lkernel32 -lmsvcrt
+	./jalgo.exe ./examples/rule110.jalgo ./rule110.nasm c
+	nasm -f win64 rule110.nasm -o rule110.o
+	ld -o rule110.exe rule110.o -lkernel32 -lmsvcrt
