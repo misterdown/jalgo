@@ -50,11 +50,11 @@ const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax
 
 const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt] ; print\n\tpop rdx\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
-const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
+const SUCCESSFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
 
-const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tcall printf\n";
 const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
-const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
+const SUCCESSFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
 
 #[derive(Eq, PartialEq)]
 #[derive(Hash)]
@@ -294,9 +294,9 @@ fn compile_statement(state: &State) -> Option<String> {
     } else {
         let statement_exit = if state.name == "start" { 
             if cfg!(target_os = "windows") {
-                SUCCESFUL_EXIT_ASM_WIN64
+                SUCCESSFUL_EXIT_ASM_WIN64
             } else {
-                SUCCESFUL_EXIT_ASM_LINUX
+                SUCCESSFUL_EXIT_ASM_LINUX
             }
         } else {
             "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n"
