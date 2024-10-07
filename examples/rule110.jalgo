@@ -81,29 +81,35 @@ st copy_swaped : /* current: [ n1 | n2 ]. target: [n1 | n2 | n2 | n1 ] */
 st start :
     /* initialize the tape with a binary sequence */
 
-    /* initialize rigth "border" with 0 */ 0 1 0 0 0 0 0 0 0 0 0 0 1 /* initialize rigth "border" with 1 */
+    /* initialize rigth "border" with 0 */ 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize left "border" with 1 */
     stack_head 8 sum /* tape buffer 1 */
 
-    /* initialize rigth "border" with 0 */ 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize rigth "border" with 1 */
+    /* initialize rigth "border" with 0 */ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize left "border" with 1 */
     stack_head 8 sum /* tape buffer 2 */
 
     dup
-    dup 96 sum read_from /* get tape buffer 1 */
+    dup 20 8 mul 8 sum sum read_from /* get tape buffer 1 */
     /* 2 1 */
     copy_swaped
     copy_swaped
     copy_swaped
     copy_swaped
     copy_swaped
-    11
+    copy_swaped
+    copy_swaped
+    20
     apply_rule110 
-    11
+    20
     apply_rule110 
-    11
+    20
     apply_rule110 
-    11
+    20
     apply_rule110 
-    11
+    20
     apply_rule110 
-    11
+    20
+    apply_rule110 
+    20
+    apply_rule110 
+    20
     apply_rule110 ;

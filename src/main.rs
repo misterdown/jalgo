@@ -33,17 +33,12 @@ macro_rules! INT_FMT {
     };
 }
 
-mod windows {
-    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
-}
+pub const ASM_CODE_BEGIN_WIN64: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
+pub const ASM_CODE_BEGIN_LINUX: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 
-mod linux {
-    pub const ASM_CODE_BEGIN: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
-}
 const STACK_HEAD_ASM: &str = "\tpush rsp ; stack_head\n";
 const READ_FROM_ASM: &str = "\tpop rax ; read_from\n\tpush qword [rax]\n";
 const WRITE_TO_ASM: &str = "\tpop rax ; write_to\n\tpop rbx\n\tmov qword [rbx], rax\n";
-const PRINT_ASM: &str = "\tpop rdx ; print\n\tlea rcx, [rel @int_fmt]\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const POP_ASM: &str = "\tadd rsp, 8\n";
 const SUM_ASM: &str = "\tpop rax ; sum\n\tpop rbx\n\tadd rbx, rax\n\tpush rbx\n";
 const DIF_ASM: &str = "\tpop rax ; dif\n\tpop rbx\n\tsub rbx, rax\n\tpush rbx\n";
@@ -52,7 +47,14 @@ const DIV_ASM: &str = "\tpop rbx; div\n\tpop rax\n\txor rdx, rdx\n\tdiv rbx\n\tp
 const DUP_ASM: &str = "\tpush qword [rsp] ; dup\n";
 const SWAP0_1_ASM: &str = "\tpop rax ; swap0_1\n\tpop rbx\n\tpush rax\n\tpush rbx\n";
 const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax\n\tpush rbx\n\tpush rcx\n";
-const EXIT_ASM: &str = "\tcall exit\n";
+
+const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt]\n\tpop rdx ; print\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
+const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
+
+const PRINT_ASM_LINUX: &str = "\tlea rdi, [rel @int_fmt]\n\tpop rsi ; print\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
+const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
 
 #[derive(Eq, PartialEq)]
 #[derive(Hash)]
@@ -61,7 +63,6 @@ enum StateType {
     StackHead,
     ReadFrom,
     WriteTo,
-    Print,
     Pop,
     Sum,
     Dif,
@@ -74,6 +75,7 @@ enum StateType {
     Swap0_2,
     SelfCall,
     SelfGoto,
+    Print,
     Exit,
     Additional,
 }
@@ -92,7 +94,6 @@ impl Clone for StateType {
             StateType::StackHead => StateType::StackHead,
             StateType::ReadFrom =>  StateType::ReadFrom,
             StateType::WriteTo =>   StateType::WriteTo,
-            StateType::Print =>     StateType::Print,
             StateType::Pop =>       StateType::Pop,
             StateType::Sum =>       StateType::Sum,
             StateType::Dif =>       StateType::Dif,
@@ -105,6 +106,7 @@ impl Clone for StateType {
             StateType::Swap0_2 =>   StateType::Swap0_2,
             StateType::SelfCall =>  StateType::SelfCall,
             StateType::SelfGoto =>  StateType::SelfGoto,
+            StateType::Print =>     StateType::Print,
             StateType::Exit =>      StateType::Exit,
             StateType::Additional =>StateType::Additional,
         }
@@ -137,10 +139,6 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
         }
         StateType::WriteTo => {
             panic!("write_to not allowed in interpriter mode");
-        }
-        StateType::Print => {
-            let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
-            print!("{} ", last);
         }
         StateType::Pop => {
             stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
@@ -178,6 +176,10 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
             let end_index = stack.len() - 1;
             let end_prev_prev_index = stack.len() - 3;
             stack.swap(end_index, end_prev_prev_index);
+        }
+        StateType::Print => {
+            let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
+            print!("{} ", last);
         }
         StateType::Exit => {
             exit(0);
@@ -244,19 +246,25 @@ fn is_inlinable(state: &State) -> bool {
 }
 fn compile_statement(state: &State) -> Option<String> {
     let mut map = HashMap::new();
-    map.insert(StateType::StackHead, STACK_HEAD_ASM);
-    map.insert(StateType::ReadFrom, READ_FROM_ASM);
-    map.insert(StateType::WriteTo, WRITE_TO_ASM);
-    map.insert(StateType::Print, PRINT_ASM);
-    map.insert(StateType::Pop, POP_ASM);
-    map.insert(StateType::Sum, SUM_ASM);
-    map.insert(StateType::Dif, DIF_ASM);
-    map.insert(StateType::Mul, MUL_ASM);
-    map.insert(StateType::Div, DIV_ASM);
-    map.insert(StateType::Dup, DUP_ASM);
-    map.insert(StateType::Swap0_1, SWAP0_1_ASM);
-    map.insert(StateType::Swap0_2, SWAP0_2_ASM);
-    map.insert(StateType::Exit, EXIT_ASM);
+    map.insert(StateType::StackHead,    STACK_HEAD_ASM);
+    map.insert(StateType::ReadFrom,     READ_FROM_ASM);
+    map.insert(StateType::WriteTo,      WRITE_TO_ASM);
+    map.insert(StateType::Pop,          POP_ASM);
+    map.insert(StateType::Sum,          SUM_ASM);
+    map.insert(StateType::Dif,          DIF_ASM);
+    map.insert(StateType::Mul,          MUL_ASM);
+    map.insert(StateType::Div,          DIV_ASM);
+    map.insert(StateType::Dup,          DUP_ASM);
+    map.insert(StateType::Swap0_1,      SWAP0_1_ASM);
+    map.insert(StateType::Swap0_2,      SWAP0_2_ASM);
+
+    if cfg!(target_os = "windows") {
+        map.insert(StateType::Print,        PRINT_ASM_WIN64);
+        map.insert(StateType::Exit,         EXIT_ASM_WIN64);
+    } else {
+        map.insert(StateType::Print,        PRINT_ASM_LINUX);
+        map.insert(StateType::Exit,         EXIT_ASM_LINUX);
+    }
 
     if let Some(asm) = map.get(&state.state_type) {
         return Some(asm.to_string());
@@ -284,6 +292,16 @@ fn compile_statement(state: &State) -> Option<String> {
             iter.next();
         }
     } else {
+        let statement_exit = if state.name == "start" { 
+            if cfg!(target_os = "windows") {
+                SUCCESFUL_EXIT_ASM_WIN64
+            } else {
+                SUCCESFUL_EXIT_ASM_LINUX
+            }
+        } else {
+            "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n"
+        };
+
         out += state.name.as_str();
         out += ":\n\tpop rax\n\tcall @share_to_second_stack\n";
         out += "@";
@@ -320,7 +338,8 @@ fn compile_statement(state: &State) -> Option<String> {
                 out += format!("\tjle @{}_else{}\n", state.name, if_count).as_str();
                 
             } else if i.state_type ==  StateType::Else {
-                out += format!("{}@{}_else{}:\n", "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n", state.name, if_stack.pop().expect("unexpected else")).as_str();
+
+                out += format!("{}@{}_else{}:\n", statement_exit, state.name, if_stack.pop().expect("unexpected else")).as_str();
             } else if i.state_type == StateType::SelfCall {
                 out += "\tcall ";
                 out += state.name.as_str();
@@ -340,7 +359,7 @@ fn compile_statement(state: &State) -> Option<String> {
             }
             iter.next();
         }
-        out += "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n";
+        out += statement_exit;
     }
     return Some(out)
 }
@@ -450,8 +469,6 @@ fn main() {
                 continue;
             }
 
-            
-
             last_state.deps.push(
                 states
                     .iter()
@@ -476,9 +493,9 @@ fn main() {
     }
 
     let asm_code_begin = if cfg!(target_os = "windows") {
-        windows::ASM_CODE_BEGIN
+        ASM_CODE_BEGIN_WIN64
     } else {
-        linux::ASM_CODE_BEGIN
+        ASM_CODE_BEGIN_LINUX
     };
 
     let mut compiled_code = format!("{}",asm_code_begin);
