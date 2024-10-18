@@ -50,11 +50,11 @@ const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax
 
 const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt] ; print\n\tpop rdx\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
-const SUCCESSFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
+const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
 
-const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tcall printf\n";
+const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
-const SUCCESSFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
+const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
 
 #[derive(Eq, PartialEq)]
 #[derive(Hash)]
@@ -117,16 +117,16 @@ impl Clone for StateType {
 #[derive(Default)]
 struct State {
     name: String,
-    deps: Vec<State>,
+    deps: Vec<usize>, // deps id`s
     state_type: StateType,
     inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
 }
 
 fn numeric_state(str: String) -> State {
-    State{name: str, state_type: StateType::Integer, deps: Vec::<State>::new(), inlinable: false }
+    State{name: str, state_type: StateType::Integer, deps: Vec::<usize>::new(), inlinable: false }
 }
 
-fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option<()> {
+fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<StackValueType>) -> Option<()> {
     match state.state_type {
         StateType::Integer => {
             stack.push(state.name.parse::<StackValueType>().ok()?);
@@ -188,9 +188,10 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
             let mut else_count = 0;
             let mut if_count = 0;
             for i in state.deps.iter() {
-                if i.state_type == StateType::Else {
+                let dep =  states.get(*i).expect("invalid statement index");
+                if dep.state_type == StateType::Else {
                     else_count += 1;
-                } else if i.state_type == StateType::If {
+                } else if dep.state_type == StateType::If {
                     if_count += 1;
                 }
             }
@@ -204,25 +205,26 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
                     break;
                 }
                 let i = io.unwrap();
-                if i.state_type ==  StateType::If {
+                let dep =  states.get(*i).expect("invalid statement index");
+                if dep.state_type ==  StateType::If {
                     let last = stack.pop()?;
                     if last <= 0 {
                         if_happens = true;
                     }
                 }
                 if if_happens  {
-                    if i.state_type ==  StateType::Else {
+                    if dep.state_type ==  StateType::Else {
                         if_happens = false;
                     }
-                } else if i.state_type ==  StateType::Else {
+                } else if dep.state_type ==  StateType::Else {
                     break;
-                } else if i.state_type == StateType::SelfCall {
-                    execute_statement(state, stack)?;
-                } else if i.state_type == StateType::SelfGoto {
+                } else if dep.state_type == StateType::SelfCall {
+                    execute_statement(states, state, stack)?;
+                } else if dep.state_type == StateType::SelfGoto {
                     iter =  state.deps.iter();
                     continue;
                 } else {
-                    execute_statement(i, stack)?;
+                    execute_statement(states, dep, stack)?;
                 }
                 iter.next();
             }
@@ -230,21 +232,22 @@ fn execute_statement(state: &State, stack: &mut Vec::<StackValueType>) -> Option
     }
     Some(())
 }
-fn is_inlinable(state: &State) -> bool {
+fn is_inlinable(states: &Vec<State>, state: &State) -> bool {
     if state.name == "start" {
         return false
     }
     for i in state.deps.iter().enumerate() {
-        if  (i.1.state_type == StateType::If) || 
-            (i.1.state_type == StateType::Else) || 
-            (i.1.state_type == StateType::SelfCall) ||
-            (i.1.state_type == StateType::SelfGoto) {
+        let dep =  states.get(*i.1).expect("invalid statement index");
+        if  (dep.state_type == StateType::If) || 
+            (dep.state_type == StateType::Else) || 
+            (dep.state_type == StateType::SelfCall) ||
+            (dep.state_type == StateType::SelfGoto) {
                 return false
         }
     }
     return true
 }
-fn compile_statement(state: &State) -> Option<String> {
+fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     let mut map = HashMap::new();
     map.insert(StateType::StackHead,    STACK_HEAD_ASM);
     map.insert(StateType::ReadFrom,     READ_FROM_ASM);
@@ -281,12 +284,13 @@ fn compile_statement(state: &State) -> Option<String> {
                 break;
             }
             let i = io.unwrap();
+            let dep = states.get(*i).expect("invalid statement index");
             
-            if i.inlinable || i.state_type == StateType::Integer {
-                out += compile_statement(i).expect("compiling error").as_str();
+            if dep.inlinable || dep.state_type == StateType::Integer {
+                out += compile_statement(states, dep).expect("compiling error").as_str();
             } else {
                 out += "\tcall ";
-                out += i.name.as_str();
+                out += dep.name.as_str();
                 out += "\n";
             }
             iter.next();
@@ -294,9 +298,9 @@ fn compile_statement(state: &State) -> Option<String> {
     } else {
         let statement_exit = if state.name == "start" { 
             if cfg!(target_os = "windows") {
-                SUCCESSFUL_EXIT_ASM_WIN64
+                SUCCESFUL_EXIT_ASM_WIN64
             } else {
-                SUCCESSFUL_EXIT_ASM_LINUX
+                SUCCESFUL_EXIT_ASM_LINUX
             }
         } else {
             "\tcall @get_pop_second_stack\n\tpush rax\n\tret\n\tpop rax\n"
@@ -312,9 +316,10 @@ fn compile_statement(state: &State) -> Option<String> {
             let mut else_count = 0;
             let mut if_count = 0;
             for i in state.deps.iter() {
-                if i.state_type == StateType::Else {
+                let dep = states.get(*i).expect("invalid statement index");
+                if dep.state_type == StateType::Else {
                     else_count += 1;
-                } else if i.state_type == StateType::If {
+                } else if dep.state_type == StateType::If {
                     if_count += 1;
                 }
             }
@@ -329,31 +334,32 @@ fn compile_statement(state: &State) -> Option<String> {
                 break;
             }
             let i = io.unwrap();
+            let dep = states.get(*i).expect("invalid statement index");
             
-            if i.state_type ==  StateType::If {
+            if dep.state_type ==  StateType::If {
                 if_count += 1;
                 if_stack.push(if_count);
                 out += "\tpop rax\n";
                 out += "\tcmp rax, 0\n";
                 out += format!("\tjle @{}_else{}\n", state.name, if_count).as_str();
                 
-            } else if i.state_type ==  StateType::Else {
+            } else if dep.state_type ==  StateType::Else {
 
                 out += format!("{}@{}_else{}:\n", statement_exit, state.name, if_stack.pop().expect("unexpected else")).as_str();
-            } else if i.state_type == StateType::SelfCall {
+            } else if dep.state_type == StateType::SelfCall {
                 out += "\tcall ";
                 out += state.name.as_str();
                 out += "\n";
-            } else if i.state_type == StateType::SelfGoto {
+            } else if dep.state_type == StateType::SelfGoto {
                 out += "\tjmp @";
                 out += state.name.as_str();
                 out += "_jump_position_you_know\n";
             } else {
-                if i.inlinable || i.state_type == StateType::Integer {
-                    out += compile_statement(i).expect("compilation error").as_str();
+                if dep.inlinable || dep.state_type == StateType::Integer {
+                    out += compile_statement(states, dep).expect("compilation error").as_str();
                 } else {
                     out += "\tcall ";
-                    out += i.name.as_str();
+                    out += dep.name.as_str();
                     out += "\n";
                 }
             }
@@ -403,24 +409,24 @@ fn main() {
     let code = std::fs::read_to_string(input_file).expect("Unable to read file");
 
     let mut states: Vec<State> = vec![
-        State{name: "stack_head".to_string(),       state_type: StateType::StackHead,   deps: Vec::<State>::default(), inlinable: true },
-        State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::<State>::default(), inlinable: true },
-        State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::<State>::default(), inlinable: true },
-        State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::<State>::default(), inlinable: true },
-        State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "dif".to_string(),              state_type: StateType::Dif,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "mul".to_string(),              state_type: StateType::Mul,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "div".to_string(),              state_type: StateType::Div,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::<State>::default(), inlinable: true },
-        State{name: "if".to_string(),               state_type: StateType::If,          deps: Vec::<State>::default(), inlinable: true },
-        State{name: "else".to_string(),             state_type: StateType::Else,        deps: Vec::<State>::default(), inlinable: true },
-        State{name: "swap".to_string(),             state_type: StateType::Swap0_1,     deps: Vec::<State>::default(), inlinable: true },
-        State{name: "swap0_1".to_string(),          state_type: StateType::Swap0_1,     deps: Vec::<State>::default(), inlinable: true },
-        State{name: "swap0_2".to_string(),          state_type: StateType::Swap0_2,     deps: Vec::<State>::default(), inlinable: true },
-        State{name: "__self__".to_string(),         state_type: StateType::SelfCall,    deps: Vec::<State>::default(), inlinable: true },
-        State{name: "__self__goto__".to_string(),   state_type: StateType::SelfGoto,    deps: Vec::<State>::default(), inlinable: true },
-        State{name: "exit".to_string(),             state_type: StateType::Exit,        deps: Vec::<State>::default(), inlinable: true },
+        State{name: "stack_head".to_string(),       state_type: StateType::StackHead,   deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "dif".to_string(),              state_type: StateType::Dif,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "mul".to_string(),              state_type: StateType::Mul,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "div".to_string(),              state_type: StateType::Div,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "if".to_string(),               state_type: StateType::If,          deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "else".to_string(),             state_type: StateType::Else,        deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "swap".to_string(),             state_type: StateType::Swap0_1,     deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "swap0_1".to_string(),          state_type: StateType::Swap0_1,     deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "swap0_2".to_string(),          state_type: StateType::Swap0_2,     deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "__self__".to_string(),         state_type: StateType::SelfCall,    deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "__self__goto__".to_string(),   state_type: StateType::SelfGoto,    deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "exit".to_string(),             state_type: StateType::Exit,        deps: Vec::<usize>::default(), inlinable: true },
     ];
     let mut last_state = State::default();
     let tokens = code.split_whitespace();
@@ -453,7 +459,7 @@ fn main() {
             if i.1 == ";" {
                 state_colon = false;
                 // inline-check
-                if is_inlinable(&last_state) {
+                if is_inlinable(&states, &last_state) {
                     last_state.inlinable = true;
                 }
 
@@ -465,14 +471,15 @@ fn main() {
                 panic!("the first character of the state name cannot be '@'");
             }
             if let Ok(num) = i.1.parse::<StackValueType>() {
-                last_state.deps.push(numeric_state(num.to_string()));
+                last_state.deps.push(states.len());
+                states.push(numeric_state(num.to_string()));
                 continue;
             }
 
             last_state.deps.push(
                 states
                     .iter()
-                    .find_map(|x| if x.name == i.1 { Some(x.clone()) } else { None })
+                    .position (|x| x.name == i.1 )
                     .expect(&format!("invalid statement \"{}\"", i.1)),
             );
         } else if i.1 == "st" {
@@ -485,7 +492,7 @@ fn main() {
     if let Some(mode) = mode {
         if mode == "i" {
             let mut stack = Vec::<StackValueType>::new();
-            execute_statement(states.iter().enumerate().find(|x| x.1.name == "start").expect("entry point \"start\" doesnt exist").1, &mut stack);
+            execute_statement(&states, states.iter().enumerate().find(|x| x.1.name == "start").expect("entry point \"start\" doesnt exist").1, &mut stack);
             return;
         } else if mode != "c" {
             panic!("unknown mode. check --help")
@@ -500,7 +507,7 @@ fn main() {
 
     let mut compiled_code = format!("{}",asm_code_begin);
     for i in states.iter().filter(|x| !x.inlinable).enumerate() {
-        compiled_code += compile_statement(i.1).expect("compilation error").as_str();
+        compiled_code += compile_statement(&states, i.1).expect("compilation error").as_str();
     }
 
     if let Some(output_file) = output_file {
