@@ -35,7 +35,7 @@ macro_rules! INT_FMT {
 
 pub const ASM_CODE_BEGIN_WIN64: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 pub const ASM_CODE_BEGIN_LINUX: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
-
+// |
 const STACK_HEAD_ASM: &str = "\tpush rsp ; stack_head\n";
 // |
 const READ_FROM_ASM: &str = "\tpop rax ; read_from\n\tpush qword [rax]\n";
@@ -63,11 +63,6 @@ const DIF_ASM: &str = "\tpop rax ; dif\n\tsub qword [rsp], rax\n";
 const MUL_ASM: &str = "\tpop rax ; mul\n\tpop rbx\n\tmul rbx\n\tpush rax\n";
 const DIV_ASM: &str = "\tpop rbx ; div\n\tpop rax\n\tdiv rbx\n\tpush rax\n";
 // |
-// const SWAP0_1_ASM: &str = "\tpop rax ; swap0_1\n\tpop rbx\n\tpush rax\n\tpush rbx\n"; unoptimized
-// const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax\n\tpush rbx\n\tpush rcx\n"; unoptimized
-const SWAP0_1_ASM: &str = "\tmov rax, qword [rsp] ; swap0_1\n\tmov rbx, qword [rsp + 8]\n\tmov qword [rsp], rbx\n\tmov qword [rsp + 8], rax\n";
-const SWAP0_2_ASM: &str = "\tmov rax, qword [rsp] ; swap0_2\n\tmov rbx, qword [rsp + 16]\n\tmov qword [rsp], rbx\n\tmov qword [rsp + 16], rax\n";
-// |
 const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt] ; print\n\tpop rdx\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
 const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
@@ -75,6 +70,10 @@ const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
 const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
 const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
+
+fn generate_swap_asm(first_argument: usize, second_argument: usize) -> String {
+    format!("\tmov rax, qword [rsp + {first}] ; swap<{first_argument},{second_argument}>\n\tmov rbx, qword [rsp + {second}]\n\tmov qword [rsp + {first}], rbx\n\tmov qword [rsp + {second}], rax\n", first = first_argument * 8,  second = second_argument * 8)
+}
 
 #[derive(Eq, PartialEq)]
 #[derive(Hash)]
@@ -97,8 +96,7 @@ enum StateType {
     Div,
     If,
     Else,
-    Swap0_1,
-    Swap0_2,
+    Swap,
     SelfCall,
     SelfGoto,
     Print,
@@ -134,8 +132,7 @@ impl Clone for StateType {
             StateType::Div =>       StateType::Div,
             StateType::If =>        StateType::If,
             StateType::Else =>      StateType::Else,
-            StateType::Swap0_1 =>   StateType::Swap0_1,
-            StateType::Swap0_2 =>   StateType::Swap0_2,
+            StateType::Swap   =>    StateType::Swap,
             StateType::SelfCall =>  StateType::SelfCall,
             StateType::SelfGoto =>  StateType::SelfGoto,
             StateType::Print =>     StateType::Print,
@@ -145,22 +142,11 @@ impl Clone for StateType {
     }
 }
 
-// #[derive(Clone)]
-// #[derive(Default)]
-// struct StateDefinition {
-//     name: String,
-//     deps: Vec<usize>, // deps id`s
-//     template_arguments: Vec<String>, // deps id`s
-//     state_type: StateType,
-//     inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
-// }
 #[derive(Clone)]
 #[derive(Default)]
 struct State {
-    // state_definition_id: usize,
     name: String,
     deps: Vec<usize>, // deps id`s
-    // template_arguments: Vec<String>, 
     state_type: StateType,
     inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
 }
@@ -168,7 +154,9 @@ struct State {
 fn numeric_state(str: String) -> State {
     State{name: str, state_type: StateType::Integer, deps: Vec::<usize>::new(), inlinable: false }
 }
-
+fn get_template_arguments_string(str: &String) -> String {
+    str[str.bytes().enumerate().position(|x| x.1 == '<' as u8).expect("invalid template") + 1..str.len() - 1].to_string()
+}
 fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<StackValueType>) -> Option<()> {
     match state.state_type {
         StateType::Integer => {
@@ -204,11 +192,27 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             stack.push((second_argument < first_argument) as StackValueType);
         }
         StateType::Dup => {
-            let last = stack.last().ok_or_else(|| "stack is empty on dup".to_string()).ok()?;
-            stack.push(*last);
+            let last = stack.last().ok_or_else(|| "stack is empty on dup".to_string()).ok()?.clone();
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let dup_count = substr.parse::<StackValueType>().ok()?;
+                for _i in 0..dup_count {
+                    stack.push(last);
+                }
+            } else {
+                stack.push(last);
+            }
         }
         StateType::Pop => {
-            stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let pop_count = substr.parse::<StackValueType>().ok()?;
+                for _i in 0..pop_count {
+                    stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+                }
+            } else {
+                stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+            }
         }
         StateType::Inc => {
             let last = stack.pop().ok_or_else(|| "stack is empty on inc".to_string()).ok()?;
@@ -238,15 +242,18 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             let second_argument = stack.pop().ok_or_else(|| "stack is empty on div".to_string()).ok()?;
             stack.push(second_argument / first_argument);
         }
-        StateType::Swap0_1 => {
-            let end_index = stack.len() - 1;
-            let end_prev_index = stack.len() - 2;
-            stack.swap(end_index, end_prev_index);
-        }
-        StateType::Swap0_2 => {
-            let end_index = stack.len() - 1;
-            let end_prev_prev_index = stack.len() - 3;
-            stack.swap(end_index, end_prev_prev_index);
+        StateType::Swap => {
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let arguments = substr.split(',').collect::<Vec<_>>();
+                let first_index = stack.len() - 1 - arguments.get(0).expect("too few template arguments in swap").parse::<usize>().ok()?;
+                let second_index = stack.len() - 1 - arguments.get(1).expect("too few template arguments in swap").parse::<usize>().ok()?;
+                stack.swap(first_index, second_index);
+            } else {
+                let end_index = stack.len() - 1;
+                let end_prev_index = stack.len() - 2;
+                stack.swap(end_index, end_prev_index);
+            }
         }
         StateType::Print => {
             let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
@@ -327,7 +334,6 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     map.insert(StateType::Neq,          NEQ_ASM);
     map.insert(StateType::More,         MORE_ASM);
     map.insert(StateType::Less,         LESS_ASM);
-    map.insert(StateType::Pop,          POP_ASM);
     map.insert(StateType::Inc,          INC_ASM);
     map.insert(StateType::Dec,          DEC_ASM);
     map.insert(StateType::Sum,          SUM_ASM);
@@ -335,8 +341,6 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     map.insert(StateType::Mul,          MUL_ASM);
     map.insert(StateType::Div,          DIV_ASM);
     map.insert(StateType::Dup,          DUP_ASM);
-    map.insert(StateType::Swap0_1,      SWAP0_1_ASM);
-    map.insert(StateType::Swap0_2,      SWAP0_2_ASM);
 
     if cfg!(target_os = "windows") {
         map.insert(StateType::Print,        PRINT_ASM_WIN64);
@@ -344,6 +348,38 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     } else {
         map.insert(StateType::Print,        PRINT_ASM_LINUX);
         map.insert(StateType::Exit,         EXIT_ASM_LINUX);
+    }
+
+    // template commands check
+    match state.state_type {
+        StateType::Pop => {
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let pop_count = substr.parse::<usize>().expect("template argement in pop must be integer");
+                return Some(POP_ASM.repeat(pop_count));
+            } else {
+                return Some(POP_ASM.to_string());
+            }
+        }, StateType::Dup => {
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let dup_count = substr.parse::<usize>().ok()?;
+                return Some(DUP_ASM.repeat(dup_count));
+            } else {
+                return Some(DUP_ASM.to_string());
+            }
+        }, StateType::Swap => {
+            if state.name.bytes().last().unwrap().clone() == '>' as u8 {
+                let substr = get_template_arguments_string(&state.name);
+                let arguments = substr.split(',').collect::<Vec<_>>();
+                let first_index = arguments.get(0).expect("too few template arguments in swap").parse::<usize>().ok()?;
+                let second_index = arguments.get(1).expect("too few template arguments in swap").parse::<usize>().ok()?;
+                return Some(generate_swap_asm(first_index, second_index));
+            } else {
+                return Some(generate_swap_asm(0, 1));
+            }
+        },
+        _ => { },
     }
 
     if let Some(asm) = map.get(&state.state_type) {
@@ -486,36 +522,34 @@ fn main() {
     let code = std::fs::read_to_string(input_file).expect("Unable to read file");
 
     let mut states: Vec<State> = vec![
-        State{name: "stack_head".to_string(),       state_type: StateType::StackHead,   deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "eq".to_string(),               state_type: StateType::Eq,          deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "neq".to_string(),              state_type: StateType::Neq,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "more".to_string(),             state_type: StateType::More,        deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "less".to_string(),             state_type: StateType::Less,        deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "dif".to_string(),              state_type: StateType::Dif,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "mul".to_string(),              state_type: StateType::Mul,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "div".to_string(),              state_type: StateType::Div,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "inc".to_string(),              state_type: StateType::Inc,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "dec".to_string(),              state_type: StateType::Dec,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "if".to_string(),               state_type: StateType::If,          deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "else".to_string(),             state_type: StateType::Else,        deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "swap".to_string(),             state_type: StateType::Swap0_1,     deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "swap0_1".to_string(),          state_type: StateType::Swap0_1,     deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "swap0_2".to_string(),          state_type: StateType::Swap0_2,     deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "__self__".to_string(),         state_type: StateType::SelfCall,    deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "__self__goto__".to_string(),   state_type: StateType::SelfGoto,    deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "exit".to_string(),             state_type: StateType::Exit,        deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "stack_head".to_string(),       state_type: StateType::StackHead,   deps: Vec::new(), inlinable: true },
+        State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::new(), inlinable: true },
+        State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::new(), inlinable: true },
+        State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::new(), inlinable: true },
+        State{name: "eq".to_string(),               state_type: StateType::Eq,          deps: Vec::new(), inlinable: true },
+        State{name: "neq".to_string(),              state_type: StateType::Neq,         deps: Vec::new(), inlinable: true },
+        State{name: "more".to_string(),             state_type: StateType::More,        deps: Vec::new(), inlinable: true },
+        State{name: "less".to_string(),             state_type: StateType::Less,        deps: Vec::new(), inlinable: true },
+        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::new(), inlinable: true },
+        State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::new(), inlinable: true },
+        State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::new(), inlinable: true },
+        State{name: "dif".to_string(),              state_type: StateType::Dif,         deps: Vec::new(), inlinable: true },
+        State{name: "mul".to_string(),              state_type: StateType::Mul,         deps: Vec::new(), inlinable: true },
+        State{name: "div".to_string(),              state_type: StateType::Div,         deps: Vec::new(), inlinable: true },
+        State{name: "inc".to_string(),              state_type: StateType::Inc,         deps: Vec::new(), inlinable: true },
+        State{name: "dec".to_string(),              state_type: StateType::Dec,         deps: Vec::new(), inlinable: true },
+        State{name: "if".to_string(),               state_type: StateType::If,          deps: Vec::new(), inlinable: true },
+        State{name: "else".to_string(),             state_type: StateType::Else,        deps: Vec::new(), inlinable: true },
+        State{name: "swap".to_string(),             state_type: StateType::Swap,        deps: Vec::new(), inlinable: true },
+        State{name: "__self__".to_string(),         state_type: StateType::SelfCall,    deps: Vec::new(), inlinable: true },
+        State{name: "__self__goto__".to_string(),   state_type: StateType::SelfGoto,    deps: Vec::new(), inlinable: true },
+        State{name: "exit".to_string(),             state_type: StateType::Exit,        deps: Vec::new(), inlinable: true },
     ];
     let mut last_state = State::default();
     let tokens = code.split_whitespace();
 
     let mut state_colon = false;
-    let mut state_found = false;
+    let mut in_state = false;
     let mut in_comment = false;
     for i in tokens.enumerate() {
         if i.1.is_empty() {
@@ -532,12 +566,12 @@ fn main() {
             continue;
         }
         
-        if state_found {
+        if in_state {
             last_state.name = i.1.to_string();
             if last_state.name.get(0..1).expect("too small statement name") == "@" {
                 panic!("the first character of the state name cannot be '@'");
             }
-            state_found = false;
+            in_state = false;
         } else if state_colon {
             if i.1 == ";" {
                 state_colon = false;
@@ -558,15 +592,29 @@ fn main() {
                 states.push(numeric_state(num.to_string()));
                 continue;
             }
-
-            last_state.deps.push(
-                states
+            if let Some(substr_len) = i.1.bytes().enumerate().position(|x| x.1 == '<' as u8) {
+                let real_state_name = &i.1[..substr_len];
+                if let Some(template_statement) =
+                    states
                     .iter()
-                    .position (|x| x.name == i.1 )
-                    .expect(&format!("invalid statement \"{}\"", i.1)),
-            );
+                    .find(|x| x.name == real_state_name){
+                    
+                    last_state.deps.push(states.len());
+                    states.push(State{name: i.1.to_string(), state_type: template_statement.state_type.clone(), deps: template_statement.deps.clone(), inlinable: template_statement.inlinable });                                      
+                } else {
+                    panic!("{real_state_name} statement doenst exist");
+                }
+            } else {
+                last_state.deps.push(
+                    states
+                        .iter()
+                        .position (|x| x.name == i.1 )
+                        .expect(&format!("invalid statement \"{}\"", i.1)),
+                );
+            }
+
         } else if i.1 == "st" {
-            state_found = true;
+            in_state = true;
         } else if i.1 == ":" {
             state_colon = true;
         }
