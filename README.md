@@ -32,17 +32,17 @@ Welcome to jalgo, a stack-based programming language that's designed to make you
 - **Recursion**: You can call yourself with `__self__`. Isn't that cute?
 - **Iteration**: You can restart the current expression with `__self__goto__`. Because who needs loops?
 - **Conditional Statements**: `if` and `else` are here to make your life a living hell.
-- **Basic Operations**: `print`, `exit`, `pop`, `sum`, `dif`, `mul`, `div`, `dup`, `swap`, `swap0_2`. Who needs more?
+- **Basic Operations**: `print`, `exit`, `pop`, `sum`, `dif`, `mul`, `div`, `dup`, `swap`, `swap<x,y>`, `inc`, `dec`, `eq`, `neq`, `more`, `less`, `stack_head`, `read_from`, `write_to`. Who needs more?
 - **Stack Management**: `stack_head` returns a pointer to the top of the stack.
 - **Memory Operations**: `write_to` writes a value to a memory location pointed to by the top value on the stack. Syntax: `POINTER VALUE write_to`. `read_from` reads a value from a memory location pointed to by the top value on the stack. Syntax: `POINTER read_from`. Who needs fancy data structures?
-
+- **Template Commands**: Some commands now support templates, similar to C++ or rust. Yeah, I fell in love with the templates. `pop<n>`, `dup<n>`, and `swap<x,y>`
 
 ## Getting Started
 
 To get started, you'll need to write some code. Here's a simple example to calculate the factorial of a number:
 
 ```jalgo
-st factorial_loop : swap dup if dup swap0_2 mul swap 1 dif swap __self__goto__ else pop ;
+st factorial_loop : swap dup if dup swap<0,2> mul swap 1 dif swap __self__goto__ else pop ;
 st factorial : 1 factorial_loop ;
 
 st start : 10 factorial print ;
@@ -60,11 +60,12 @@ The command-line interface for jalgo is as follows:
 ARGS:
     <input>    sets the input file to use
     <output>   sets the output file to use
-    <mode>     sets the interprutation/compilation mode.
-               posible values: c | i
+    <mode>     sets the interpretation/compilation mode.
+               possible values: c | i
 ```
 
-The `input` argument is required and specifies the input file to use. The `output` argument is optional and specifies the output file to use. The `mode` argument is required and specifies the interprutation/compilation mode. Possible values are `c` for compilation into asm(NASM) and `i` for interprutation.
+The `input` argument is required and specifies the input file to use. The `output` argument is optional and specifies the output file to use. The `mode` argument is required and specifies the interpretation/compilation mode. Possible values are `c` for compilation into asm (NASM) and `i` for interpretation.
+
 ## Examples
 
 ### Sum of Numbers
@@ -72,7 +73,7 @@ The `input` argument is required and specifies the input file to use. The `outpu
 Here's how you can calculate the sum of numbers from 1 to N:
 
 ```jalgo
-st sum_of_loop : dup if dup swap0_2 sum swap 1 dif __self__goto__ else pop ;
+st sum_of_loop : dup if dup swap<0,2> sum swap 1 dif __self__goto__ else pop ;
 st sum_of : 0 swap sum_of_loop ;
 ```
 
@@ -81,7 +82,7 @@ st sum_of : 0 swap sum_of_loop ;
 Here's how you can calculate the factorial of a number:
 
 ```jalgo
-st factorial_loop : dup if dup swap0_2 mul swap 1 dif __self__goto__ else pop ;
+st factorial_loop : dup if dup swap<0,2> mul swap 1 dif swap __self__goto__ else pop ;
 st factorial : 1 swap factorial_loop ;
 ```
 
@@ -90,7 +91,7 @@ st factorial : 1 swap factorial_loop ;
 Here's how you can calculate the sum of squares from 1 to N:
 
 ```jalgo
-st sum_squares_loop : dup if dup swap0_2 swap dup mul sum swap 1 dif __self__goto__ else pop ;
+st sum_squares_loop : dup if dup swap<0,2> swap dup mul sum swap 1 dif __self__goto__ else pop ;
 st sum_squares : 0 swap sum_squares_loop ;
 ```
 
@@ -113,15 +114,13 @@ Here's how you can calculate the Fibonacci sequence using iteration:
 
 ```jalgo
 st is_false : if 0 else 1 ;
-st fibonacci_iteration_loop : swap0_2 dup if 1 dif swap0_2 dup swap0_2 sum __self__goto__ else pop swap pop ;
+st fibonacci_iteration_loop : swap<0,2> dup if 1 dif swap<0,2> dup swap<0,2> sum __self__goto__ else pop swap pop ;
 st fibonacci_iteration : dup 1 dif is_false if pop 0 else 1 dif 0 1 fibonacci_iteration_loop ;
 ```
 
 ### Rule 110
 
 Check [it](examples/rule110.jalgo)
-
-(In interprutation mode) It might be a quirk of the Rust, but print only works after all the called states have finished executing—but it does work correctly. So, if you want to see the result of sum_of, you'll have to wait for fibonacci_recursion to finish, which could take a while. Grab a coffee, maybe two.
 
 ## Contributing
 
