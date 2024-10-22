@@ -37,21 +37,41 @@ pub const ASM_CODE_BEGIN_WIN64: &str = "section .import\n\textern printf\n\texte
 pub const ASM_CODE_BEGIN_LINUX: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 
 const STACK_HEAD_ASM: &str = "\tpush rsp ; stack_head\n";
+// |
 const READ_FROM_ASM: &str = "\tpop rax ; read_from\n\tpush qword [rax]\n";
 const WRITE_TO_ASM: &str = "\tpop rax ; write_to\n\tpop rbx\n\tmov qword [rbx], rax\n";
-const POP_ASM: &str = "\tadd rsp, 8\n";
-const SUM_ASM: &str = "\tpop rax ; sum\n\tpop rbx\n\tadd rbx, rax\n\tpush rbx\n";
-const DIF_ASM: &str = "\tpop rax ; dif\n\tpop rbx\n\tsub rbx, rax\n\tpush rbx\n";
-const MUL_ASM: &str = "\tpop rax ; mul\n\tpop rbx\n\tmul rbx\n\tpush rax\n";
-const DIV_ASM: &str = "\tpop rbx; div\n\tpop rax\n\txor rdx, rdx\n\tdiv rbx\n\tpush rax\n";
+// |
 const DUP_ASM: &str = "\tpush qword [rsp] ; dup\n";
-const SWAP0_1_ASM: &str = "\tpop rax ; swap0_1\n\tpop rbx\n\tpush rax\n\tpush rbx\n";
-const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax\n\tpush rbx\n\tpush rcx\n";
-
+const POP_ASM: &str = "\tadd rsp, 8\n";
+// |
+const EQ_ASM: &str = "\tpop rax ; eq\n\tpop rbx\n\tcmp rbx, rax\n\tsete al\n\tand rax, 1\n\tpush rax\n";
+const NEQ_ASM: &str = "\tpop rax ; neq\n\tpop rbx\n\tcmp rbx, rax\n\tsetne al\n\tand rax, 1\n\tpush rax\n";
+// |
+const MORE_ASM: &str = "\tpop rax ; more\n\tpop rbx\n\tcmp rbx, rax\n\tsetg al\n\tand rax, 1\n\tpush rax\n";
+const LESS_ASM: &str = "\tpop rax ; less\n\tpop rbx\n\tcmp rbx, rax\n\tsetl al\n\tand rax, 1\n\tpush rax\n";
+// |
+// const INC_ASM: &str = "\tpop rax ; inc\n\tinc rax\n\tpush rax\n"; unoptimized
+// const DEC_ASM: &str = "\tpop rax ; dec\n\tdec rax\n\tpush rax\n"; unoptimized
+const INC_ASM: &str = "\tinc qword [rsp] ; inc\n";
+const DEC_ASM: &str = "\tdec qword [rsp] ; dec\n";
+// |
+// const SUM_ASM: &str = "\tpop rax ; sum\n\tpop rbx\n\tadd rbx, rax\n\tpush rbx\n"; unoptimized
+// const DIF_ASM: &str = "\tpop rax ; dif\n\tpop rbx\n\tsub rbx, rax\n\tpush rbx\n"; unoptimized
+const SUM_ASM: &str = "\tpop rax ; sum\n\tadd qword [rsp], rax\n";
+const DIF_ASM: &str = "\tpop rax ; dif\n\tsub qword [rsp], rax\n";
+// |
+const MUL_ASM: &str = "\tpop rax ; mul\n\tpop rbx\n\tmul rbx\n\tpush rax\n";
+const DIV_ASM: &str = "\tpop rbx ; div\n\tpop rax\n\tdiv rbx\n\tpush rax\n";
+// |
+// const SWAP0_1_ASM: &str = "\tpop rax ; swap0_1\n\tpop rbx\n\tpush rax\n\tpush rbx\n"; unoptimized
+// const SWAP0_2_ASM: &str = "\tpop rax ; swap0_2\n\tpop rbx\n\tpop rcx\n\tpush rax\n\tpush rbx\n\tpush rcx\n"; unoptimized
+const SWAP0_1_ASM: &str = "\tmov rax, qword [rsp] ; swap0_1\n\tmov rbx, qword [rsp + 8]\n\tmov qword [rsp], rbx\n\tmov qword [rsp + 8], rax\n";
+const SWAP0_2_ASM: &str = "\tmov rax, qword [rsp] ; swap0_2\n\tmov rbx, qword [rsp + 16]\n\tmov qword [rsp], rbx\n\tmov qword [rsp + 16], rax\n";
+// |
 const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt] ; print\n\tpop rdx\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
 const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
-
+// |
 const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
 const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
 const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
@@ -63,12 +83,18 @@ enum StateType {
     StackHead,
     ReadFrom,
     WriteTo,
+    Eq,
+    Neq,
+    More,
+    Less,
+    Dup,
     Pop,
+    Inc,
+    Dec,
     Sum,
     Dif,
     Mul,
     Div,
-    Dup,
     If,
     Else,
     Swap0_1,
@@ -80,7 +106,7 @@ enum StateType {
     Additional,
 }
 
-type StackValueType = i32;
+type StackValueType = i64;
 
 impl Default for StateType {
     fn default() -> Self {
@@ -94,12 +120,18 @@ impl Clone for StateType {
             StateType::StackHead => StateType::StackHead,
             StateType::ReadFrom =>  StateType::ReadFrom,
             StateType::WriteTo =>   StateType::WriteTo,
+            StateType::Eq =>        StateType::Eq,
+            StateType::Neq =>       StateType::Neq,
+            StateType::More =>      StateType::More,
+            StateType::Less =>      StateType::Less,
+            StateType::Dup =>       StateType::Dup,
             StateType::Pop =>       StateType::Pop,
+            StateType::Inc =>       StateType::Inc,
+            StateType::Dec =>       StateType::Dec,
             StateType::Sum =>       StateType::Sum,
             StateType::Dif =>       StateType::Dif,
             StateType::Mul =>       StateType::Mul,
             StateType::Div =>       StateType::Div,
-            StateType::Dup =>       StateType::Dup,
             StateType::If =>        StateType::If,
             StateType::Else =>      StateType::Else,
             StateType::Swap0_1 =>   StateType::Swap0_1,
@@ -113,11 +145,22 @@ impl Clone for StateType {
     }
 }
 
+// #[derive(Clone)]
+// #[derive(Default)]
+// struct StateDefinition {
+//     name: String,
+//     deps: Vec<usize>, // deps id`s
+//     template_arguments: Vec<String>, // deps id`s
+//     state_type: StateType,
+//     inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
+// }
 #[derive(Clone)]
 #[derive(Default)]
 struct State {
+    // state_definition_id: usize,
     name: String,
     deps: Vec<usize>, // deps id`s
+    // template_arguments: Vec<String>, 
     state_type: StateType,
     inlinable: bool, // inlinable states cannot contain 'if', 'else', '__self__', '__self__goto__'
 }
@@ -140,8 +183,40 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
         StateType::WriteTo => {
             panic!("write_to not allowed in interpriter mode");
         }
+        StateType::Eq => {
+            let first_argument = stack.pop().ok_or_else(|| "stack is empty on eq".to_string()).ok()?;
+            let second_argument = stack.pop().ok_or_else(|| "stack is empty on eq".to_string()).ok()?;
+            stack.push((second_argument == first_argument) as StackValueType);
+        }
+        StateType::Neq => {
+            let first_argument = stack.pop().ok_or_else(|| "stack is empty on neq".to_string()).ok()?;
+            let second_argument = stack.pop().ok_or_else(|| "stack is empty on neq".to_string()).ok()?;
+            stack.push((second_argument == first_argument) as StackValueType);
+        }
+        StateType::More => {
+            let first_argument = stack.pop().ok_or_else(|| "stack is empty on more".to_string()).ok()?;
+            let second_argument = stack.pop().ok_or_else(|| "stack is empty on more".to_string()).ok()?;
+            stack.push((second_argument > first_argument) as StackValueType);
+        }
+        StateType::Less => {
+            let first_argument = stack.pop().ok_or_else(|| "stack is empty on less".to_string()).ok()?;
+            let second_argument = stack.pop().ok_or_else(|| "stack is empty on less".to_string()).ok()?;
+            stack.push((second_argument < first_argument) as StackValueType);
+        }
+        StateType::Dup => {
+            let last = stack.last().ok_or_else(|| "stack is empty on dup".to_string()).ok()?;
+            stack.push(*last);
+        }
         StateType::Pop => {
             stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+        }
+        StateType::Inc => {
+            let last = stack.pop().ok_or_else(|| "stack is empty on inc".to_string()).ok()?;
+            stack.push(last + 1);
+        }
+        StateType::Dec => {
+            let last = stack.pop().ok_or_else(|| "stack is empty on dec".to_string()).ok()?;
+            stack.push(last - 1);
         }
         StateType::Sum => {
             let first_argument = stack.pop().ok_or_else(|| "stack is empty on sum".to_string()).ok()?;
@@ -162,10 +237,6 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             let first_argument = stack.pop().ok_or_else(|| "stack is empty on div".to_string()).ok()?;
             let second_argument = stack.pop().ok_or_else(|| "stack is empty on div".to_string()).ok()?;
             stack.push(second_argument / first_argument);
-        }
-        StateType::Dup => {
-            let last = stack.last().ok_or_else(|| "stack is empty on dup".to_string()).ok()?;
-            stack.push(*last);
         }
         StateType::Swap0_1 => {
             let end_index = stack.len() - 1;
@@ -252,7 +323,13 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     map.insert(StateType::StackHead,    STACK_HEAD_ASM);
     map.insert(StateType::ReadFrom,     READ_FROM_ASM);
     map.insert(StateType::WriteTo,      WRITE_TO_ASM);
+    map.insert(StateType::Eq,           EQ_ASM);
+    map.insert(StateType::Neq,          NEQ_ASM);
+    map.insert(StateType::More,         MORE_ASM);
+    map.insert(StateType::Less,         LESS_ASM);
     map.insert(StateType::Pop,          POP_ASM);
+    map.insert(StateType::Inc,          INC_ASM);
+    map.insert(StateType::Dec,          DEC_ASM);
     map.insert(StateType::Sum,          SUM_ASM);
     map.insert(StateType::Dif,          DIF_ASM);
     map.insert(StateType::Mul,          MUL_ASM);
@@ -344,8 +421,8 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
                 out += format!("\tjle @{}_else{}\n", state.name, if_count).as_str();
                 
             } else if dep.state_type ==  StateType::Else {
-
                 out += format!("{}@{}_else{}:\n", statement_exit, state.name, if_stack.pop().expect("unexpected else")).as_str();
+
             } else if dep.state_type == StateType::SelfCall {
                 out += "\tcall ";
                 out += state.name.as_str();
@@ -413,12 +490,18 @@ fn main() {
         State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::<usize>::default(), inlinable: true },
         State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::<usize>::default(), inlinable: true },
         State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "eq".to_string(),               state_type: StateType::Eq,          deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "neq".to_string(),              state_type: StateType::Neq,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "more".to_string(),             state_type: StateType::More,        deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "less".to_string(),             state_type: StateType::Less,        deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "pop".to_string(),              state_type: StateType::Pop,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "sum".to_string(),              state_type: StateType::Sum,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "dif".to_string(),              state_type: StateType::Dif,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "mul".to_string(),              state_type: StateType::Mul,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "div".to_string(),              state_type: StateType::Div,         deps: Vec::<usize>::default(), inlinable: true },
-        State{name: "dup".to_string(),              state_type: StateType::Dup,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "inc".to_string(),              state_type: StateType::Inc,         deps: Vec::<usize>::default(), inlinable: true },
+        State{name: "dec".to_string(),              state_type: StateType::Dec,         deps: Vec::<usize>::default(), inlinable: true },
         State{name: "if".to_string(),               state_type: StateType::If,          deps: Vec::<usize>::default(), inlinable: true },
         State{name: "else".to_string(),             state_type: StateType::Else,        deps: Vec::<usize>::default(), inlinable: true },
         State{name: "swap".to_string(),             state_type: StateType::Swap0_1,     deps: Vec::<usize>::default(), inlinable: true },
