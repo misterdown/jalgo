@@ -28,14 +28,14 @@ st apply_rule110 :
     /* the head starts at the first cell */
 
     dup if 
-        1 dif
-        swap0_2
+        dec
+        swap<0,2>
         /* current stack: [ tape size | tape buffer 2 pointer | tape buffer 1 pointer ] */
 
+        dup<3>
+        
         /* read the current cell and its two neighbors */
-        dup 
-        dup 
-        dup 8 dif read_from /* left neighbor */
+        8 dif read_from /* left neighbor */
         swap /* keep tape pointer on the top */
 
         dup read_from /* current cell */
@@ -65,14 +65,12 @@ st apply_rule110 :
         swap
         8 sum
         swap
-        swap0_2
+        swap<0,2>
 
         /* current stack: [ tape buffer 1 pointer | tape buffer 2 pointer | tape size] */
         __self__goto__
     else
-        pop 
-        pop
-        pop ;
+        pop<3> ;
 
 st copy_swaped : /* current: [ n1 | n2 ]. target: [n1 | n2 | n2 | n1 ] */
     dup
