@@ -21,7 +21,6 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 */
-
 use std::*;
 use std::process::exit;
 use collections::hash_map::HashMap;
@@ -105,6 +104,8 @@ enum StateType {
 }
 
 type StackValueType = i64;
+// const STACK_VALUE_SIZE: usize = size_of::<StackValueType>();
+const STACK_VALUE_SIZE_AS_SV: StackValueType = size_of::<StackValueType>() as StackValueType;
 
 impl Default for StateType {
     fn default() -> Self {
@@ -163,7 +164,8 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             stack.push(state.name.parse::<StackValueType>().ok()?);
         }
         StateType::StackHead => {
-            panic!("stack_head not allowed in interpriter mode");
+            let stack_len = stack.len();
+            stack.push((stack_len as StackValueType) * STACK_VALUE_SIZE_AS_SV);
         }
         StateType::ReadFrom => {
             panic!("read_from not allowed in interpriter mode");
@@ -340,7 +342,6 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
     map.insert(StateType::Dif,          DIF_ASM);
     map.insert(StateType::Mul,          MUL_ASM);
     map.insert(StateType::Div,          DIV_ASM);
-    map.insert(StateType::Dup,          DUP_ASM);
 
     if cfg!(target_os = "windows") {
         map.insert(StateType::Print,        PRINT_ASM_WIN64);
@@ -630,10 +631,11 @@ fn main() {
         }
     }
 
-    let asm_code_begin = if cfg!(target_os = "windows") {
-        ASM_CODE_BEGIN_WIN64
+    let asm_code_begin;
+    if cfg!(target_os = "windows") {
+        asm_code_begin = ASM_CODE_BEGIN_WIN64
     } else {
-        ASM_CODE_BEGIN_LINUX
+        asm_code_begin = ASM_CODE_BEGIN_LINUX
     };
 
     let mut compiled_code = format!("{}",asm_code_begin);
@@ -642,7 +644,56 @@ fn main() {
     }
 
     if let Some(output_file) = output_file {
-        std::fs::write(output_file, compiled_code).expect("unable to write file");
+        let output_nasm_file_string = output_file.to_string() + ".nasm";
+        let output_obj_file_string = output_file.to_string() + ".o";
+        let output_result_file_string;
+        if cfg!(target_os = "windows") {
+            output_result_file_string = output_file.to_string() + ".exe";
+        } else {
+            output_result_file_string = output_file.to_string();
+        };
+        std::fs::write(output_nasm_file_string.clone(), compiled_code).expect("unable to write file");
+        if cfg!(target_os = "windows") {
+            if let Err(error_nasm) = std::process::Command::
+                new("nasm").
+                arg("-fwin64").
+                arg(output_nasm_file_string).
+                arg("-o").
+                arg(output_obj_file_string.clone()).
+                spawn() {
+                    eprintln!("{}", error_nasm);
+                }
+                
+            if let Err(error_gcc) = std::process::Command::
+                new("gcc").
+                arg(output_obj_file_string).
+                arg("-o").
+                arg(output_result_file_string).
+                spawn() {
+                    eprintln!("{}", error_gcc);
+                }
+        } else {
+            if let Err(error_nasm) = std::process::Command::
+                new("nasm").
+                arg("-felf32").
+                arg(output_nasm_file_string).
+                arg("-o").
+                arg(output_obj_file_string.clone()).
+                spawn() {
+                    eprintln!("{}", error_nasm);
+                }
+                
+            if let Err(error_gcc) = std::process::Command::
+                new("gcc").
+                arg("-no-pie").
+                arg(output_obj_file_string).
+                arg("-o").
+                arg(output_result_file_string).
+                spawn() {
+                    eprintln!("{}", error_gcc);
+                }
+        }
+
     } else {
         println!("{}", compiled_code);
     }
