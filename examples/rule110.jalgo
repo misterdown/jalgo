@@ -1,3 +1,6 @@
+st tape_size : 20 ;
+st rule110_count : tape_size ;
+
 st rule110_step : /* takes 3 last stack values and return to stack a new value. current[-1] | current[0] | current[1] => rule110 result */
     if
         if 
@@ -45,7 +48,7 @@ st apply_rule110 :
         dup 8 sum read_from /* right neighbor */
         swap
         pop
-        /* apply Rule 110 */
+        /* apply Rule110 */
         rule110_step
         
         /* current stack: [ tape size | tape buffer 2 pointer | tape buffer 1 pointer | tape buffer 1 pointer | rule110_value ] */
@@ -76,6 +79,20 @@ st copy_swaped : /* current: [ n1 | n2 ]. target: [n1 | n2 | n2 | n1 ] */
     dup
     stack_head 16 sum read_from ;
 
+st apply_rule110_times : /* current stack: [ tape buffer 1 pointer | tape buffer 2 pointer | times ] */
+    dup if
+        dec
+        swap<0,1>
+        swap<1,2> /* current stack: [  times | tape buffer 1 pointer | tape buffer 2 pointer ] */
+        copy_swaped /* current stack: [  times | tape buffer 1 pointer | tape buffer 2 pointer | tape buffer 2 pointer | tape buffer 1 pointer ] */
+        tape_size
+        apply_rule110 
+        swap<0,2>
+        __self__goto__
+    else
+        pop<3> ;
+
+
 st start :
     /* initialize the tape with a binary sequence */
 
@@ -85,29 +102,6 @@ st start :
     /* initialize rigth "border" with 0 */ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize left "border" with 1 */
     stack_head 8 sum /* tape buffer 2 */
 
-    dup
-    dup 20 8 mul 8 sum sum read_from /* get tape buffer 1 */
-    /* 2 1 */
-    copy_swaped
-    copy_swaped
-    copy_swaped
-    copy_swaped
-    copy_swaped
-    copy_swaped
-    copy_swaped
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 
-    20
-    apply_rule110 ;
+    dup                                 /* get tape buffer 2 */
+    dup tape_size 8 mul 8 sum sum read_from    /* get tape buffer 1 */
+    rule110_count apply_rule110_times ;
