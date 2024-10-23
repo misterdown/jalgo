@@ -675,7 +675,7 @@ fn main() {
         } else {
             if let Err(error_nasm) = std::process::Command::
                 new("nasm").
-                arg("-felf32").
+                arg("-felf64").
                 arg(output_nasm_file_string).
                 arg("-o").
                 arg(output_obj_file_string.clone()).
