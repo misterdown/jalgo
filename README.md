@@ -64,7 +64,7 @@ ARGS:
                possible values: c | i
 ```
 
-The `input` argument is required and specifies the input file to use. The `output` argument is optional and specifies the output file to use. The `mode` argument is required and specifies the interpretation/compilation mode. Possible values are `c` for compilation into asm (NASM) and `i` for interpretation.
+The `input` argument is required and specifies the input file to use. The `output` argument is optional and specifies the output file to use. The `mode` argument is required and specifies the interpretation/compilation mode. Possible values are `c` for compilation jalgo code into asm (NASM), asm code to executable and `i` for interpretation.
 
 ## Examples
 
