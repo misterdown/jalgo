@@ -25,15 +25,21 @@ use std::*;
 use std::process::exit;
 use collections::hash_map::HashMap;
 use clap::{App, Arg};
+use io::Write;
 
 macro_rules! INT_FMT {
     () => {
         "\tpush qword {}\n"
     };
 }
+macro_rules! BIG_INT_FMT { // x > i32.max
+    () => {
+        "\tmov rax, {}\n\tpush rax\n"
+    };
+}
 
-pub const ASM_CODE_BEGIN_WIN64: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
-pub const ASM_CODE_BEGIN_LINUX: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
+const ASM_CODE_BEGIN_WIN64: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@bytes_fmt: db \"%.8s\", 0\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal WinMain\n\nWinMain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
+const ASM_CODE_BEGIN_LINUX: &str = "section .import\n\textern printf\n\textern exit\n\nsection .data\n\t@int_fmt: db \"%lli \", 0\n\t@bytes_fmt: db \"%.8s\", 0\n\t\n\t@second_stack: times 1024 dq 0\n\t@stack_size: dq 0\n\nsection .text\n\tglobal main\n\nmain:\n\tjmp start\n\n@share_to_second_stack:\n\t; arg - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov qword [rbx + rcx * 8], rax\n\tmov rcx, @stack_size\n\tinc qword [rcx]\n\tret\n\n@get_pop_second_stack:\n\t; return - rax\n\tmov rbx, @second_stack\n\tmov rcx, @stack_size\n\tmov rcx, [rcx]\n\tmov rax, qword [rbx + rcx * 8 - 8]\n\tmov rcx, @stack_size\n\tdec qword [rcx]\n\tret\n";
 // |
 const STACK_HEAD_ASM: &str = "\tpush rsp ; stack_head\n";
 // |
@@ -63,10 +69,12 @@ const MUL_ASM: &str = "\tpop rax ; mul\n\tpop rbx\n\tmul rbx\n\tpush rax\n";
 const DIV_ASM: &str = "\tpop rbx ; div\n\tpop rax\n\tdiv rbx\n\tpush rax\n";
 // |
 const PRINT_ASM_WIN64: &str = "\tlea rcx, [rel @int_fmt] ; print\n\tpop rdx\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const WRITE_RAW_ASM_WIN64: &str = "\tlea rcx, [rel @bytes_fmt] ; write\n\tmov rdx, rsp\n\tsub rsp, 56\n\tcall printf\n\tadd rsp, 64\n"; // "sub rsp, 56" = "add rsp, 8"(pop) + "sub rsp, 64"
 const EXIT_ASM_WIN64: &str = "\tpop rcx\n\tcall exit\n";
-const SUCCESFUL_EXIT_ASM_WIN64: &str = "\txor rcx, rcx\n\tcall exit\n";
+const SUCCESFUL_EXIT_ASM_WIN64: &str = "\tadd rsp, 32\n\txor rcx, rcx\n\tcall exit\n";
 // |
 const PRINT_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @int_fmt]\n\tpop rsi\n\tsub rsp, 32\n\tcall printf\n\tadd rsp, 32\n";
+const WRITE_RAW_ASM_LINUX: &str = "\txor rax, rax ; print\n\tlea rdi, [rel @bytes_fmt]\n\tpop rsi\n\tsub rsp, 56\n\tcall printf\n\tadd rsp, 64\n"; // "sub rsp, 56" = "add rsp, 8"(pop) + "sub rsp, 64"
 const EXIT_ASM_LINUX: &str = "\tpop rdi\n\tcall exit\n";
 const SUCCESFUL_EXIT_ASM_LINUX: &str = "\txor rdi, rdi\n\tcall exit\n";
 
@@ -99,6 +107,7 @@ enum StateType {
     SelfCall,
     SelfGoto,
     Print,
+    WriteRaw,
     Exit,
     Additional,
 }
@@ -137,6 +146,7 @@ impl Clone for StateType {
             StateType::SelfCall =>  StateType::SelfCall,
             StateType::SelfGoto =>  StateType::SelfGoto,
             StateType::Print =>     StateType::Print,
+            StateType::WriteRaw =>  StateType::WriteRaw,
             StateType::Exit =>      StateType::Exit,
             StateType::Additional =>StateType::Additional,
         }
@@ -261,6 +271,10 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
             print!("{} ", last);
         }
+        StateType::WriteRaw => {
+            let value = stack.len() - 1;
+            std::io::stdout().write(value.to_be_bytes().as_slice()).expect("error on write_raw");
+        }
         StateType::Exit => {
             exit(0);
         }
@@ -345,9 +359,11 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
 
     if cfg!(target_os = "windows") {
         map.insert(StateType::Print,        PRINT_ASM_WIN64);
+        map.insert(StateType::WriteRaw,     WRITE_RAW_ASM_WIN64);
         map.insert(StateType::Exit,         EXIT_ASM_WIN64);
     } else {
         map.insert(StateType::Print,        PRINT_ASM_LINUX);
+        map.insert(StateType::WriteRaw,     WRITE_RAW_ASM_LINUX);
         map.insert(StateType::Exit,         EXIT_ASM_LINUX);
     }
 
@@ -387,7 +403,12 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
         return Some(asm.to_string());
     }
     if state.state_type == StateType::Integer {
-        return Some(format!(INT_FMT!(), state.name));
+        let integer = state.name.parse::<i64>().expect("invalid integer");
+        if integer > i32::MAX as i64 {
+            return Some(format!(BIG_INT_FMT!(), state.name));
+        } else {
+            return Some(format!(INT_FMT!(), state.name));
+        }
     }
     let mut out = String::new();
     if state.inlinable {
@@ -464,10 +485,12 @@ fn compile_statement(states: &Vec<State>, state: &State) -> Option<String> {
                 out += "\tcall ";
                 out += state.name.as_str();
                 out += "\n";
+
             } else if dep.state_type == StateType::SelfGoto {
                 out += "\tjmp @";
                 out += state.name.as_str();
                 out += "_jump_position_you_know\n";
+
             } else {
                 if dep.inlinable || dep.state_type == StateType::Integer {
                     out += compile_statement(states, dep).expect("compilation error").as_str();
@@ -527,6 +550,7 @@ fn main() {
         State{name: "read_from".to_string(),        state_type: StateType::ReadFrom,    deps: Vec::new(), inlinable: true },
         State{name: "write_to".to_string(),         state_type: StateType::WriteTo,     deps: Vec::new(), inlinable: true },
         State{name: "print".to_string(),            state_type: StateType::Print,       deps: Vec::new(), inlinable: true },
+        State{name: "write_raw".to_string(),        state_type: StateType::WriteRaw,       deps: Vec::new(), inlinable: true },
         State{name: "eq".to_string(),               state_type: StateType::Eq,          deps: Vec::new(), inlinable: true },
         State{name: "neq".to_string(),              state_type: StateType::Neq,         deps: Vec::new(), inlinable: true },
         State{name: "more".to_string(),             state_type: StateType::More,        deps: Vec::new(), inlinable: true },

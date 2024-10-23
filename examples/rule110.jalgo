@@ -1,5 +1,13 @@
-st tape_size : 20 ;
+st generate_tape : 0 1 0 dup<38> 1 ;
+
+st tape_size : 40 ;
 st rule110_count : tape_size ;
+
+/* st smile_face : 2325258224 ; /* 😊 raw value */ */
+st '@' : 64 ;
+st 'SP' : 32 ; /* space */
+
+st print_tape_element : if '@' write_raw else 'SP' write_raw ;
 
 st rule110_step : /* takes 3 last stack values and return to stack a new value. current[-1] | current[0] | current[1] => rule110 result */
     if
@@ -42,7 +50,7 @@ st apply_rule110 :
         swap /* keep tape pointer on the top */
 
         dup read_from /* current cell */
-        dup print
+        dup print_tape_element
         swap /* keep tape pointer on the top */
 
         dup 8 sum read_from /* right neighbor */
@@ -96,10 +104,10 @@ st apply_rule110_times : /* current stack: [ tape buffer 1 pointer | tape buffer
 st start :
     /* initialize the tape with a binary sequence */
 
-    /* initialize rigth "border" with 0 */ 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize left "border" with 1 */
+    generate_tape
     stack_head 8 sum /* tape buffer 1 */
 
-    /* initialize rigth "border" with 0 */ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 /* initialize left "border" with 1 */
+    generate_tape
     stack_head 8 sum /* tape buffer 2 */
 
     dup                                 /* get tape buffer 2 */
