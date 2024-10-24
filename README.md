@@ -150,4 +150,4 @@ Feel free to contribute to this **`language`**. Just make sure your code is as o
 
 ## License
 
-This project is licensed under the [MIT license](license) (why not WTFPL? idk)
+This project is licensed under the [MIT license](LICENSE) (why not WTFPL? idk)
