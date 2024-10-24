@@ -184,23 +184,23 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             panic!("write_to not allowed in interpriter mode");
         }
         StateType::Eq => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on eq".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on eq".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on eq");
+            let second_argument = stack.pop().expect("stack is empty on eq");
             stack.push((second_argument == first_argument) as StackValueType);
         }
         StateType::Neq => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on neq".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on neq".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on neq");
+            let second_argument = stack.pop().expect("stack is empty on neq");
             stack.push((second_argument == first_argument) as StackValueType);
         }
         StateType::More => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on more".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on more".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on more");
+            let second_argument = stack.pop().expect("stack is empty on more");
             stack.push((second_argument > first_argument) as StackValueType);
         }
         StateType::Less => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on less".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on less".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on less");
+            let second_argument = stack.pop().expect("stack is empty on less");
             stack.push((second_argument < first_argument) as StackValueType);
         }
         StateType::Dup => {
@@ -220,38 +220,36 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
                 let substr = get_template_arguments_string(&state.name);
                 let pop_count = substr.parse::<StackValueType>().ok()?;
                 for _i in 0..pop_count {
-                    stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+                    stack.pop().expect("stack is empty on pop");
                 }
             } else {
-                stack.pop().ok_or_else(|| "stack is empty on pop".to_string()).ok()?;
+                stack.pop().expect("stack is empty on pop");
             }
         }
         StateType::Inc => {
-            let last = stack.pop().ok_or_else(|| "stack is empty on inc".to_string()).ok()?;
-            stack.push(last + 1);
+            *stack.last_mut().expect("stack is empty on inc") += 1;
         }
         StateType::Dec => {
-            let last = stack.pop().ok_or_else(|| "stack is empty on dec".to_string()).ok()?;
-            stack.push(last - 1);
+            *stack.last_mut().expect("stack is empty on dec") -= 1;
         }
         StateType::Sum => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on sum".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on sum".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on sum");
+            let second_argument = stack.pop().expect("stack is empty on sum");
             stack.push(second_argument + first_argument);
         }
         StateType::Dif => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on dif".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on dif".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on dif");
+            let second_argument = stack.pop().expect("stack is empty on dif");
             stack.push(second_argument - first_argument);
         }
         StateType::Mul => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on mul".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on mul".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on mul");
+            let second_argument = stack.pop().expect("stack is empty on mul");
             stack.push(second_argument * first_argument);
         }
         StateType::Div => {
-            let first_argument = stack.pop().ok_or_else(|| "stack is empty on div".to_string()).ok()?;
-            let second_argument = stack.pop().ok_or_else(|| "stack is empty on div".to_string()).ok()?;
+            let first_argument = stack.pop().expect("stack is empty on div");
+            let second_argument = stack.pop().expect("stack is empty on div");
             stack.push(second_argument / first_argument);
         }
         StateType::Swap => {
@@ -268,15 +266,16 @@ fn execute_statement(states: &Vec<State>, state: &State, stack: &mut Vec::<Stack
             }
         }
         StateType::Print => {
-            let last = stack.pop().ok_or_else(|| "stack is empty on print".to_string()).ok()?;
+            let last = stack.pop().expect("stack is empty on print");
             print!("{} ", last);
         }
         StateType::WriteRaw => {
-            let value = stack.len() - 1;
+            let value = stack.pop().expect("stack is empty on write_raw");
             std::io::stdout().write(value.to_be_bytes().as_slice()).expect("error on write_raw");
         }
         StateType::Exit => {
-            exit(0);
+            let value = stack.pop().expect("stack is empty on exit");
+            exit(value as i32);
         }
         _ => {
             let mut else_count = 0;

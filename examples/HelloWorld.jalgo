@@ -1,0 +1,20 @@
+/* most cursed hello world ever */
+
+st SPACE : 32 ;
+
+st 'd' : 100 ;
+st 'e' : 101 ;
+st 'l' : 108 ;
+st 'o' : 111 ;
+st 'r' : 114 ;
+
+st 'H' : 72 ;
+st 'W' : 87 ;
+
+st print_string : 
+    dup if
+        write_raw
+        __self__goto__
+    else
+        pop ;
+st start : 0 'd' 'l' 'r' 'o' 'W' SPACE 'o' 'l' 'l' 'e' 'H' print_string ;

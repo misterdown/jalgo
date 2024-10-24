@@ -7,7 +7,7 @@ st rule110_count : tape_size ;
 st '@' : 64 ;
 st 'SP' : 32 ; /* space */
 
-st print_tape_element : if '@' write_raw else 'SP' write_raw ;
+st print_tape_element : if '@' write_raw 'SP' write_raw else 'SP' write_raw 'SP' write_raw ;
 
 st rule110_step : /* takes 3 last stack values and return to stack a new value. current[-1] | current[0] | current[1] => rule110 result */
     if
